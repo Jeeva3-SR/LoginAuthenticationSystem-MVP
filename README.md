@@ -1,4 +1,4 @@
-# Login Authentication System (MVP)
+# Login Authentication System (MVP) - PHASE 3
 
 Full-stack starter for email/password authentication using a Vite + React frontend and an Express + MongoDB backend. Users can register, sign in, and access a protected dashboard once authenticated.
 
