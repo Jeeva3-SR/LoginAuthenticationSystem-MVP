@@ -85,13 +85,37 @@ export const sendVerificationEmail = async (email, token) => {
   // Remove trailing slash
   backendUrl = backendUrl.replace(/\/$/, "");
   
-  const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
+  // Get frontend URL and ensure it's valid
+  let frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+  
+  // Fix common issues: remove "FRONTEND_URL=" prefix if present, remove trailing slash
+  if (frontendUrl.startsWith("FRONTEND_URL=")) {
+    frontendUrl = frontendUrl.replace(/^FRONTEND_URL=/, "");
+    console.warn("⚠️  FRONTEND_URL had 'FRONTEND_URL=' prefix, removed it");
+  }
+  frontendUrl = frontendUrl.replace(/\/$/, "");
+  
+  // Validate frontend URL is a proper URL
+  try {
+    new URL(frontendUrl);
+  } catch (e) {
+    console.error("❌ Invalid FRONTEND_URL environment variable:", frontendUrl);
+    frontendUrl = "http://localhost:5173"; // Fallback to default
+  }
+  
+  // Construct the verification URL with proper encoding
   const verificationUrl = `${backendUrl}/api/auth/verify-email?token=${token}&redirect=${encodeURIComponent(frontendUrl)}`;
   
   // Log for debugging
   if (!process.env.BACKEND_URL) {
     console.log("⚠️  BACKEND_URL not set, using fallback:", backendUrl);
   }
+  if (!process.env.FRONTEND_URL) {
+    console.log("⚠️  FRONTEND_URL not set, using fallback:", frontendUrl);
+  }
+  
+  console.log("🔗 Verification URL constructed:", verificationUrl);
+  
   const subject = "Verify Your Email Address";
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -124,6 +148,12 @@ export const sendPasswordResetEmail = async (email, token) => {
   
   // Get frontend URL and ensure it's valid
   let frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+  
+  // Fix common issues: remove "FRONTEND_URL=" prefix if present, remove trailing slash
+  if (frontendUrl.startsWith("FRONTEND_URL=")) {
+    frontendUrl = frontendUrl.replace(/^FRONTEND_URL=/, "");
+    console.warn("⚠️  FRONTEND_URL had 'FRONTEND_URL=' prefix, removed it");
+  }
   frontendUrl = frontendUrl.replace(/\/$/, "");
   
   // Validate frontend URL is a proper URL

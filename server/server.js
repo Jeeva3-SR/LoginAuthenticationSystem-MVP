@@ -186,11 +186,53 @@ app.post("/api/auth/register", async (req, res) => {
 });
 
 // ====== Verify Email API ======
+// Middleware to catch and fix malformed verification URLs
+app.use("/api/auth/verify-email", (req, res, next) => {
+  // Check if the URL path contains malformed patterns (like FRONTEND_URL= in the path)
+  if (req.path && (req.path.includes("FRONTEND_URL=") || req.originalUrl.includes("FRONTEND_URL="))) {
+    console.error("❌ Malformed verification URL detected:", req.originalUrl);
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    const baseUrl = frontendUrl.replace(/\/$/, "");
+    return res.redirect(`${baseUrl}/?error=verification_failed&message=${encodeURIComponent("Invalid verification link. Please request a new verification email.")}`);
+  }
+  next();
+});
+
 app.get("/api/auth/verify-email", async (req, res) => {
   try {
     const { token, redirect } = req.query;
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    
+    // Get frontend URL - decode redirect if present, otherwise use env var
+    let frontendUrl;
+    if (redirect) {
+      try {
+        frontendUrl = decodeURIComponent(redirect);
+      } catch (e) {
+        console.warn("⚠️  Failed to decode redirect parameter:", redirect);
+        frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+      }
+    } else {
+      frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    }
+    
+    // Fix common issues: remove "FRONTEND_URL=" prefix if present
+    if (frontendUrl.startsWith("FRONTEND_URL=")) {
+      frontendUrl = frontendUrl.replace(/^FRONTEND_URL=/, "");
+      console.warn("⚠️  Frontend URL had 'FRONTEND_URL=' prefix, removed it");
+    }
+    
+    // Clean and validate frontend URL
     const baseUrl = frontendUrl.replace(/\/$/, "");
+    
+    // Validate it's a proper URL
+    try {
+      new URL(baseUrl);
+    } catch (e) {
+      console.error("❌ Invalid frontend URL:", baseUrl);
+      const fallbackUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+      const fallbackBase = fallbackUrl.replace(/\/$/, "");
+      return res.redirect(`${fallbackBase}/?error=verification_failed&message=${encodeURIComponent("Invalid configuration.")}`);
+    }
 
     if (!token) {
       // Redirect to frontend with error
@@ -216,7 +258,7 @@ app.get("/api/auth/verify-email", async (req, res) => {
     res.redirect(`${baseUrl}/?verified=true&message=${encodeURIComponent("Email verified successfully! You can now log in.")}`);
   } catch (error) {
     console.error("❌ Email Verification Error:", error);
-    const frontendUrl = req.query.redirect || process.env.FRONTEND_URL || "http://localhost:5173";
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
     const baseUrl = frontendUrl.replace(/\/$/, "");
     res.redirect(`${baseUrl}/?error=verification_failed&message=${encodeURIComponent("Server error during verification.")}`);
   }
@@ -339,6 +381,12 @@ app.get("/api/auth/reset-password", async (req, res) => {
       }
     } else {
       frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    }
+    
+    // Fix common issues: remove "FRONTEND_URL=" prefix if present
+    if (frontendUrl.startsWith("FRONTEND_URL=")) {
+      frontendUrl = frontendUrl.replace(/^FRONTEND_URL=/, "");
+      console.warn("⚠️  Frontend URL had 'FRONTEND_URL=' prefix, removed it");
     }
     
     // Clean and validate frontend URL
