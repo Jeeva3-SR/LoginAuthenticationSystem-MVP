@@ -1,4 +1,4 @@
-# Login Authentication System - Enhanced Edition
+# Login Authentication System (MVP) - PHASE 3
 
 Full-stack authentication system with advanced security features including email verification, password reset, 2FA, and OAuth integration. Built with Vite + React frontend and Express + MongoDB backend.
 
