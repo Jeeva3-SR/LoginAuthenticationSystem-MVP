@@ -20,13 +20,19 @@ FRONTEND_URL=http://localhost:5173
 # FRONTEND_URL=https://your-frontend-url.com
 
 # ====== Email Configuration ======
-# Use the format below for any SMTP service (SendGrid, Mailgun, Brevo, etc.)
+# Choose ONE option below:
 
-EMAIL_HOST=smtp-relay.brevo.com
-EMAIL_PORT=587
-EMAIL_USER=your_brevo_email@example.com
-EMAIL_PASS=your_brevo_smtp_key
+# Option 1: Brevo API (Recommended - No SMTP connection needed!)
+BREVO_API_KEY=your_brevo_api_key_here
 EMAIL_FROM=noreply@yourdomain.com
+EMAIL_FROM_NAME=Login Authentication System
+
+# Option 2: Brevo SMTP
+# EMAIL_HOST=smtp-relay.brevo.com
+# EMAIL_PORT=587
+# EMAIL_USER=your_brevo_email@example.com
+# EMAIL_PASS=your_brevo_smtp_key
+# EMAIL_FROM=noreply@yourdomain.com
 
 # Alternative: SendGrid
 # EMAIL_HOST=smtp.sendgrid.net

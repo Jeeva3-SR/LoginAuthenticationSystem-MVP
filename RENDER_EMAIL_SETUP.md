@@ -19,12 +19,17 @@ FRONTEND_URL=https://your-frontend-url.vercel.app
 # ====== Email Service Configuration ======
 # Choose ONE option below:
 
-# Option 1: Brevo (Recommended - Works on Render)
-EMAIL_HOST=smtp-relay.brevo.com
-EMAIL_PORT=587
-EMAIL_USER=your_brevo_email@example.com
-EMAIL_PASS=your_brevo_smtp_key
+# Option 1: Brevo API (Recommended - Works on Render, No SMTP!)
+BREVO_API_KEY=your_brevo_api_key_here
 EMAIL_FROM=noreply@yourdomain.com
+EMAIL_FROM_NAME=Login Authentication System
+
+# Option 1b: Brevo SMTP (Alternative)
+# EMAIL_HOST=smtp-relay.brevo.com
+# EMAIL_PORT=587
+# EMAIL_USER=your_brevo_email@example.com
+# EMAIL_PASS=your_brevo_smtp_key
+# EMAIL_FROM=noreply@yourdomain.com
 
 # Option 2: SendGrid
 # EMAIL_HOST=smtp.sendgrid.net
