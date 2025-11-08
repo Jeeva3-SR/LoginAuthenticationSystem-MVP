@@ -1,207 +1,86 @@
-import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-// Check if email is configured
-// Support both traditional (EMAIL_USER/EMAIL_PASS) and API-based services
-const hasEmailConfig = (process.env.EMAIL_USER && process.env.EMAIL_PASS) || 
-                       (process.env.EMAIL_API_KEY && process.env.EMAIL_FROM);
+/**
+ * Email Service (Brevo API Only)
+ * ---------------------------------
+ * Works entirely via HTTPS (no SMTP ports)
+ * Perfect for Render and cloud deployments.
+ */
 
-// Create transporter only if email is configured
-let transporter = null;
-let emailVerified = false;
+const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 
-if (hasEmailConfig) {
-  try {
-    const emailService = process.env.EMAIL_SERVICE?.toLowerCase() || "gmail";
-    
-    // Configure transporter based on service type
-    let transporterConfig = {
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 10000,
-      pool: true,
-      maxConnections: 1,
-    };
-
-    // If EMAIL_HOST is provided, use custom SMTP configuration
-    // This works for SendGrid, Mailgun, Brevo, and other SMTP services
-    if (process.env.EMAIL_HOST) {
-      transporterConfig = {
-        host: process.env.EMAIL_HOST,
-        port: parseInt(process.env.EMAIL_PORT || "587"),
-        secure: process.env.EMAIL_PORT === "465", // true for 465, false for other ports
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS || process.env.EMAIL_API_KEY,
-        },
-        ...transporterConfig,
-      };
-      console.log(`📧 Using SMTP: ${process.env.EMAIL_HOST}:${process.env.EMAIL_PORT}`);
-    }
-    // SendGrid configuration (if service is specified but no host)
-    else if (emailService === "sendgrid") {
-      transporterConfig = {
-        host: "smtp.sendgrid.net",
-        port: 587,
-        secure: false,
-        auth: {
-          user: "apikey",
-          pass: process.env.EMAIL_PASS || process.env.EMAIL_API_KEY,
-        },
-        ...transporterConfig,
-      };
-      console.log("📧 Using SendGrid SMTP");
-    }
-    // Mailgun configuration
-    else if (emailService === "mailgun") {
-      transporterConfig = {
-        host: "smtp.mailgun.org",
-        port: 587,
-        secure: false,
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS,
-        },
-        ...transporterConfig,
-      };
-      console.log("📧 Using Mailgun SMTP");
-    }
-    // Brevo (Sendinblue) configuration
-    else if (emailService === "brevo" || emailService === "sendinblue") {
-      transporterConfig = {
-        host: "smtp-relay.brevo.com",
-        port: 587,
-        secure: false,
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS,
-        },
-        ...transporterConfig,
-      };
-      console.log("📧 Using Brevo SMTP");
-    }
-    // Gmail or default
-    else {
-      transporterConfig = {
-        service: emailService,
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS,
-        },
-        ...transporterConfig,
-        secure: true,
-        tls: {
-          rejectUnauthorized: false,
-        },
-      };
-    }
-
-    transporter = nodemailer.createTransport(transporterConfig);
-    
-    console.log("📧 Email transporter created");
-    console.log("⏳ Verifying email connection (non-blocking)...");
-    
-    // Verify connection asynchronously (non-blocking)
-    // This allows server to start even if email verification fails
-    transporter.verify((error, success) => {
-      if (error) {
-        console.error("❌ Email service verification failed:", error.message);
-        console.log("⚠️  Emails will be logged to console instead");
-        console.log("💡 Tip: Check EMAIL_USER and EMAIL_PASS in environment variables");
-        emailVerified = false;
-        // Don't set transporter to null - we'll try to use it anyway
-        // Some cloud providers block verification but allow actual sending
-      } else {
-        console.log("✅ Email service verified successfully");
-        emailVerified = true;
-      }
-    });
-    
-    // Set a timeout for verification (don't wait forever)
-    setTimeout(() => {
-      if (!emailVerified) {
-        console.log("⏱️  Email verification timeout - will attempt to send emails anyway");
-        console.log("⚠️  If emails fail, they will be logged to console");
-      }
-    }, 6000);
-    
-  } catch (error) {
-    console.error("❌ Email transporter creation error:", error.message);
-    console.log("⚠️  Emails will be logged to console instead");
-    transporter = null;
-  }
+// Validate configuration
+if (!process.env.BREVO_API_KEY || !process.env.EMAIL_FROM) {
+  console.warn("⚠️  Brevo Email not fully configured!");
+  console.warn("💡 Set BREVO_API_KEY and EMAIL_FROM in environment variables.");
 } else {
-  console.log("⚠️  Email not configured - emails will be logged to console");
-  console.log("💡 Set EMAIL_USER and EMAIL_PASS environment variables to enable email");
+  console.log("📧 Brevo API Email Service Ready");
 }
 
+/**
+ * Sends an email using Brevo API.
+ * 
+ * @param {string} to - Recipient email address
+ * @param {string} subject - Subject of the email
+ * @param {string} html - HTML content of the email
+ * @param {string} [text] - Optional plain text content
+ */
 export const sendEmail = async (to, subject, html, text = "") => {
   try {
-    // If email not configured, log to console
-    if (!hasEmailConfig || !transporter) {
-      console.log("\n" + "=".repeat(60));
-      console.log("📧 EMAIL (Not Sent - Logged to Console)");
-      console.log("=".repeat(60));
-      console.log("To:", to);
-      console.log("Subject:", subject);
-      console.log("\n--- HTML Content ---");
-      console.log(html);
-      if (text) {
-        console.log("\n--- Text Content ---");
-        console.log(text);
-      }
-      console.log("=".repeat(60) + "\n");
-      return { success: false, message: "Email logged (not sent - not configured)" };
+    const brevoApiKey = process.env.BREVO_API_KEY;
+    const fromEmail = process.env.EMAIL_FROM;
+    const fromName = process.env.EMAIL_FROM_NAME || "Login Authentication System";
+
+    const response = await fetch(BREVO_API_URL, {
+      method: "POST",
+      headers: {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "api-key": brevoApiKey,
+      },
+      body: JSON.stringify({
+        sender: { name: fromName, email: fromEmail },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html,
+        textContent: text || html.replace(/<[^>]*>/g, ""),
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: "Unknown Brevo API error" }));
+      throw new Error(errorData.message || `Brevo API error: ${response.status}`);
     }
 
-    const mailOptions = {
-      from: process.env.EMAIL_FROM || process.env.EMAIL_USER || "noreply@loginauth.com",
-      to,
-      subject,
-      html,
-      text: text || html.replace(/<[^>]*>/g, ""), // Strip HTML for text version
-    };
-
-    // Try to send email with shorter timeout for cloud environments
-    const sendPromise = transporter.sendMail(mailOptions);
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error("Email send timeout after 10 seconds")), 10000)
-    );
-
-    try {
-      const info = await Promise.race([sendPromise, timeoutPromise]);
-      console.log("✅ Email sent successfully:", info.messageId);
-      return { success: true, messageId: info.messageId };
-    } catch (sendError) {
-      // If send fails, log to console
-      throw sendError;
-    }
+    const result = await response.json();
+    console.log(`✅ Email sent successfully to ${to} (messageId: ${result.messageId || "N/A"})`);
+    return { success: true, messageId: result.messageId };
   } catch (error) {
     console.error("❌ Email sending error:", error.message);
-    console.log("💡 This is common on Render - emails are logged below for manual use");
-    
-    // Fallback to console logging if email fails
-    console.log("\n" + "=".repeat(60));
+    console.log("💡 The email content is logged below for manual testing.\n");
+    console.log("=".repeat(60));
     console.log("📧 EMAIL (Fallback - Email sending failed)");
     console.log("=".repeat(60));
     console.log("To:", to);
     console.log("Subject:", subject);
-    console.log("\n--- Content ---");
-    console.log(html);
-    console.log("=".repeat(60) + "\n");
+    console.log("HTML Content:\n", html);
+    console.log("=".repeat(60));
     return { success: false, error: error.message };
   }
 };
 
+/**
+ * Sends a verification email with clickable link.
+ */
 export const sendVerificationEmail = async (email, token) => {
   const verificationUrl = `${process.env.FRONTEND_URL || "http://localhost:5173"}/verify-email?token=${token}`;
   const subject = "Verify Your Email Address";
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2 style="color: #0288d1;">Email Verification</h2>
-      <p>Thank you for registering! Please verify your email address by clicking the link below:</p>
+      <p>Thank you for registering! Please verify your email address by clicking the button below:</p>
       <a href="${verificationUrl}" style="display: inline-block; padding: 12px 24px; background-color: #0288d1; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0;">
         Verify Email
       </a>
@@ -213,24 +92,29 @@ export const sendVerificationEmail = async (email, token) => {
   return sendEmail(email, subject, html);
 };
 
+/**
+ * Sends a password reset email.
+ */
 export const sendPasswordResetEmail = async (email, token) => {
   const resetUrl = `${process.env.FRONTEND_URL || "http://localhost:5173"}/reset-password?token=${token}`;
   const subject = "Reset Your Password";
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2 style="color: #0288d1;">Password Reset Request</h2>
-      <p>You requested to reset your password. Click the link below to create a new password:</p>
+      <p>You requested to reset your password. Click the button below to create a new password:</p>
       <a href="${resetUrl}" style="display: inline-block; padding: 12px 24px; background-color: #0288d1; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0;">
         Reset Password
       </a>
-      <p>Or copy and paste this link into your browser:</p>
-      <p style="color: #666; word-break: break-all;">${resetUrl}</p>
-      <p style="color: #999; font-size: 12px;">This link will expire in 1 hour. If you didn't request this, please ignore this email.</p>
+      <p>If you didn’t request this, please ignore this email.</p>
+      <p style="color: #999; font-size: 12px;">This link will expire in 1 hour.</p>
     </div>
   `;
   return sendEmail(email, subject, html);
 };
 
+/**
+ * Sends a one-time password (OTP) email.
+ */
 export const sendOTPEmail = async (email, otp) => {
   const subject = "Your Two-Factor Authentication Code";
   const html = `
@@ -241,9 +125,8 @@ export const sendOTPEmail = async (email, otp) => {
         ${otp}
       </div>
       <p style="color: #999; font-size: 12px;">This code will expire in 10 minutes.</p>
-      <p style="color: #999; font-size: 12px;">If you didn't request this code, please ignore this email.</p>
+      <p>If you didn’t request this code, please ignore this email.</p>
     </div>
   `;
   return sendEmail(email, subject, html);
 };
-
